@@ -4,39 +4,46 @@ import plotly.express as px
 import plotly.graph_objects as go
 import sys
 import os
+import time
 
-# Add project root to sys.path to allow imports from utils
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-# --- Page Config ---
 st.set_page_config(page_title="Legacy System Health Monitor", layout="wide", page_icon="🖥️")
 
-# --- Custom CSS for a more "Enterprise" look ---
-st.markdown("""
-<style>
-    .reportview-container .main .block-container { padding-top: 2rem; }
-    div[data-testid="stMetricValue"] { font-size: 2rem; }
-</style>
-""", unsafe_allow_html=True)
-
-# --- Load Data (with error handling) ---
+# --- 1. Load RAW Data (Cached for performance) ---
 @st.cache_data
-def get_data():
-    try:
-        from utils.data_generator import load_data
-        metrics, logs, incidents = load_data()
-        return metrics, logs, incidents
-    except Exception as e:
-        st.error(f"Error loading data: {e}")
-        return pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
+def get_raw_data():
+    from utils.data_generator import load_data
+    return load_data()
 
-metrics, logs, incidents = get_data()
-
-# --- Sidebar Navigation ---
-st.sidebar.title("️ Legacy Health Monitor")
+# --- 2. Sidebar Settings ---
+st.sidebar.title("🖥️ Legacy Health Monitor")
 st.sidebar.markdown("---")
 st.sidebar.info("Powered by TCS GenAI Lab\nModel: DeepSeek-V3-0324")
-page = st.sidebar.radio("Navigate to:", ["📊 Dashboard", "🤖 AI Insights", "📁 Data Explorer"])
+
+st.sidebar.markdown("### ⚙️ System Settings")
+live_mode = st.sidebar.checkbox("Enable Live Monitoring (Auto-refresh)", value=False)
+privacy_mode = st.sidebar.checkbox("🔒 Enable Privacy Mode (Anonymize Data)", value=False)
+
+if privacy_mode:
+    st.sidebar.warning("🔒 Sensitive server IDs are masked.")
+
+page = st.sidebar.radio("Navigate to:", ["📊 Dashboard", "🤖 AI Insights & Co-Pilot", "📁 Data Explorer"])
+
+# --- 3. Process Data (Runs fresh, no caching bugs) ---
+try:
+    raw_metrics, raw_logs, raw_incidents = get_raw_data()
+    from utils.data_pipeline import process_data, anonymize_data
+    
+    # Apply Preprocessing, Noise Filtering, Normalization
+    metrics, logs, incidents = process_data(raw_metrics, raw_logs, raw_incidents)
+    
+    # Apply Privacy Masking if enabled
+    if privacy_mode:
+        metrics, logs, incidents = anonymize_data(metrics, logs, incidents)
+except Exception as e:
+    st.error(f"❌ Critical Pipeline Error: {e}")
+    st.stop()
 
 # ==========================================
 # PAGE 1: DASHBOARD
@@ -45,12 +52,10 @@ if page == "📊 Dashboard":
     st.title("📊 System Health Dashboard")
     
     if metrics.empty:
-        st.warning("⚠️ No data available. Please generate data first.")
+        st.warning("⚠️ No data available.")
         st.stop()
     
-    # --- KPI Cards ---
-    col1, col2, col3 = st.columns(3)
-    
+    # KPI Calculation
     if 'is_anomaly' in metrics.columns:
         if metrics['is_anomaly'].dtype == 'object':
             metrics['is_anomaly'] = metrics['is_anomaly'].astype(str).str.lower() == 'true'
@@ -58,28 +63,31 @@ if page == "📊 Dashboard":
     else:
         recent_anomalies = 0
         
-    health_score = max(0, 100 - (recent_anomalies * 0.5))
+    total_records = len(metrics)
+    anomaly_pct = (recent_anomalies / total_records) * 100 if total_records > 0 else 0
+    health_score = max(0, 100 - (anomaly_pct * 2)) # Realistic percentage-based score
     
+    critical_logs = logs[logs['log_level'] == 'CRITICAL'].shape[0] if not logs.empty else 0
+    high_incidents = incidents[incidents['severity'] == 'High'].shape[0] if not incidents.empty else 0
+
+    col1, col2, col3 = st.columns(3)
     with col1:
         st.metric(label="Overall Health Score", value=f"{health_score:.1f}/100", delta="-2.5%")
     with col2:
-        critical_logs = logs[logs['log_level'] == 'CRITICAL'].shape[0] if not logs.empty else 0
         st.metric(label="Critical Alerts", value=critical_logs, delta="+2", delta_color="inverse")
     with col3:
-        high_incidents = incidents[incidents['severity'] == 'High'].shape[0] if not incidents.empty else 0
         st.metric(label="High Priority Incidents", value=high_incidents)
 
     st.markdown("---")
 
-    # --- Charts ---
     chart_col1, chart_col2 = st.columns(2)
-    
     with chart_col1:
-        st.subheader("📈 CPU & Memory Usage Over Time")
-        time_series = metrics.groupby('timestamp')[['cpu_usage', 'memory_usage']].mean().reset_index()
+        st.subheader("📈 CPU & Memory Usage (Noise Filtered)")
+        st.caption("✨ Showing smoothed data after noise filtering pipeline")
+        time_series = metrics.groupby('timestamp')[['cpu_usage_filtered', 'memory_usage_filtered']].mean().reset_index()
         fig1 = go.Figure()
-        fig1.add_trace(go.Scatter(x=time_series['timestamp'], y=time_series['cpu_usage'], mode='lines', name='CPU Usage', line=dict(color='red')))
-        fig1.add_trace(go.Scatter(x=time_series['timestamp'], y=time_series['memory_usage'], mode='lines', name='Memory Usage', line=dict(color='blue')))
+        fig1.add_trace(go.Scatter(x=time_series['timestamp'], y=time_series['cpu_usage_filtered'], mode='lines', name='CPU (Filtered)', line=dict(color='red')))
+        fig1.add_trace(go.Scatter(x=time_series['timestamp'], y=time_series['memory_usage_filtered'], mode='lines', name='Memory (Filtered)', line=dict(color='blue')))
         fig1.update_layout(xaxis_title="Time", yaxis_title="Percentage (%)", hovermode='x unified')
         st.plotly_chart(fig1, use_container_width=True)
 
@@ -92,60 +100,98 @@ if page == "📊 Dashboard":
                           color_discrete_map={'INFO':'#2ecc71', 'WARNING':'#f1c40f', 'ERROR':'#e67e22', 'CRITICAL':'#e74c3c'})
             st.plotly_chart(fig2, use_container_width=True)
 
+    # Live Refresh Logic
+    if live_mode:
+        countdown_placeholder = st.sidebar.empty()
+        for i in range(10, 0, -1):
+            countdown_placeholder.info(f"⏳ Next data refresh in {i}s...")
+            time.sleep(1)
+        st.rerun()
+
 # ==========================================
-# PAGE 2: AI INSIGHTS
+# PAGE 2: AI INSIGHTS & CO-PILOT
 # ==========================================
-elif page == "🤖 AI Insights":
-    st.title("🤖 AI-Driven System Analysis")
-    st.markdown("Click the button below to let our AI Engineer analyze the current system state, detect anomalies, and suggest maintenance priorities.")
+elif page == "🤖 AI Insights & Co-Pilot":
+    st.title("🤖 AI-Driven System Analysis & Co-Pilot")
     
     if metrics.empty:
-        st.warning("⚠️ No data available. Please generate data first.")
+        st.warning("⚠️ No data available.")
         st.stop()
     
-    # Session state to hold the AI analysis so we can export it later
     if 'ai_analysis' not in st.session_state:
         st.session_state.ai_analysis = ""
+    if "chat_messages" not in st.session_state:
+        st.session_state.chat_messages = []
 
-    if st.button(" Run AI Analysis", type="primary", use_container_width=True):
+    # --- 1. Generate Main Report Button ---
+    if st.button("🚀 Run AI System Analysis", type="primary", use_container_width=True):
         with st.spinner("🧠 AI is analyzing metrics, logs, and incidents..."):
             try:
                 from utils.ai_engine import analyze_system_health
                 st.session_state.ai_analysis = analyze_system_health(metrics, logs, incidents)
                 st.success("✅ Analysis Complete!")
+                st.rerun()
             except Exception as e:
-                st.error(f"❌ Error generating AI insights: {e}")
+                st.error(f"❌ Error: {e}")
 
-    # Display the analysis if it exists
+    # --- 2. Display Report if Available ---
     if st.session_state.ai_analysis:
         st.markdown("---")
-        st.subheader("📋 AI Report Output")
-        st.markdown(st.session_state.ai_analysis)
+        # Display the AI text directly without an extra subheader to keep it clean
+        st.markdown(st.session_state.ai_analysis) 
         
+        # Export PDF
         st.markdown("---")
-        st.subheader("📥 Export Report")
-        
-        # Generate and download PDF
-        try:
-            from utils.report_generator import generate_pdf_report
-            pdf_path = generate_pdf_report(metrics, logs, incidents, st.session_state.ai_analysis)
+        if st.button("📄 Generate PDF Report", use_container_width=True):
+            with st.spinner("Generating PDF..."):
+                try:
+                    from utils.report_generator import generate_pdf_report
+                    pdf_path = generate_pdf_report(metrics, logs, incidents, st.session_state.ai_analysis)
+                    with open(pdf_path, "rb") as pdf_file:
+                        st.download_button(
+                            label="⬇️ Download PDF",
+                            data=pdf_file,
+                            file_name="Legacy_System_Health_Report.pdf",
+                            mime="application/pdf",
+                            use_container_width=True
+                        )
+                except Exception as e:
+                    st.error(f"PDF Error: {e}")
+
+    # --- 3. INTERACTIVE AI CHAT CO-PILOT ---
+    st.markdown("---")
+    st.subheader("💬 Interactive AI Co-Pilot")
+    st.caption("Ask questions about your infrastructure. Examples: *'Why did MAINFRAME-A spike?'* or *'What caused the API timeouts?'*")
+    
+    # Display chat history
+    for msg in st.session_state.chat_messages:
+        with st.chat_message(msg["role"]):
+            st.markdown(msg["content"])
             
-            with open(pdf_path, "rb") as file:
-                st.download_button(
-                    label=" Download Maintenance Report (PDF)",
-                    data=file,
-                    file_name="Legacy_System_Health_Report.pdf",
-                    mime="application/pdf",
-                    use_container_width=True
-                )
-        except Exception as e:
-            st.error(f"Could not generate PDF: {e}")
+    # Chat input
+    if prompt := st.chat_input("Ask about system health, logs, or anomalies..."):
+        st.session_state.chat_messages.append({"role": "user", "content": prompt})
+        with st.chat_message("user"):
+            st.markdown(prompt)
+            
+        with st.chat_message("assistant"):
+            with st.spinner("🔍 Investigating system data..."):
+                try:
+                    from utils.ai_engine import chat_with_data
+                    response = chat_with_data(prompt, metrics, logs, incidents, st.session_state.ai_analysis)
+                    st.markdown(response)
+                    st.session_state.chat_messages.append({"role": "assistant", "content": response})
+                except Exception as e:
+                    st.error(f"Chat error: {e}")
 
 # ==========================================
 # PAGE 3: DATA EXPLORER
 # ==========================================
 elif page == "📁 Data Explorer":
     st.title("📁 Data Explorer")
+    
+    if privacy_mode:
+        st.info("🔒 Privacy Mode is ACTIVE. Sensitive server identifiers are masked.")
     
     if metrics.empty:
         st.warning("⚠️ No data available.")
@@ -154,14 +200,11 @@ elif page == "📁 Data Explorer":
     tab1, tab2, tab3 = st.tabs(["Performance Metrics", "System Logs", "Historical Incidents"])
     
     with tab1:
-        st.subheader("Performance Metrics (Raw Data)")
-        st.write(f"Total Records: {len(metrics)}")
+        st.subheader("Performance Metrics (Normalized & Filtered)")
         st.dataframe(metrics.tail(100), use_container_width=True)
     with tab2:
-        st.subheader("System Logs (Raw Data)")
-        st.write(f"Total Records: {len(logs)}")
+        st.subheader("System Logs")
         st.dataframe(logs.tail(100), use_container_width=True)
     with tab3:
-        st.subheader("Historical Incidents (Raw Data)")
-        st.write(f"Total Records: {len(incidents)}")
+        st.subheader("Historical Incidents")
         st.dataframe(incidents, use_container_width=True)

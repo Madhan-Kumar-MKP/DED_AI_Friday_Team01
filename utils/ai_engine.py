@@ -12,7 +12,7 @@ API_KEY = "sk-9jsr_wOuUgqNPt9JvdiMqQ"
 
 llm = ChatOpenAI(
     base_url="https://genailab.tcs.in",
-    model="azure_ai/genailab-maas-DeepSeek-V3-0324",
+    model="azure/genailab-maas-gpt-4o",
     api_key=API_KEY,
     http_client=client,
     temperature=0.3 # Lower temperature for more factual/analytical responses
@@ -61,7 +61,32 @@ def analyze_system_health(metrics_df, logs_df, incidents_df):
     # 5. Invoke LLM
     response = llm.invoke(prompt)
     return response.content
+def chat_with_data(user_question, metrics_df, logs_df, incidents_df, previous_analysis):
+    """
+    Allows the user to chat with the AI about the system's health, logs, and anomalies.
+    """
+    # Get a small sample of critical logs for context
+    error_logs = logs_df[logs_df['log_level'].isin(['ERROR', 'CRITICAL'])].tail(20)
+    recent_logs_csv = error_logs.to_csv(index=False) if not error_logs.empty else "No recent critical logs."
 
+    prompt = f"""
+    You are an expert AI IT Maintenance Co-Pilot. The user is asking a question about the legacy system.
+    Answer the question concisely and actionably based on the context provided.
+
+    ### PREVIOUS AI HEALTH ANALYSIS ###
+    {previous_analysis}
+
+    ### RECENT CRITICAL/ERROR LOGS ###
+    {recent_logs_csv}
+
+    ### USER QUESTION ###
+    {user_question}
+
+    Provide a direct, helpful response. If the data doesn't contain the exact answer, infer based on standard IT maintenance best practices for legacy systems.
+    """
+
+    response = llm.invoke(prompt)
+    return response.content
 # --- 3. Test the AI Engine ---
 if __name__ == "__main__":
     # Add parent directory to path so we can import from utils
