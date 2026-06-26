@@ -1,3 +1,24 @@
+# ==========================================
+# MONKEY PATCH TO FIX CORPORATE SSL ERRORS
+# ==========================================
+import requests
+import urllib3
+
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+_original_requests_get = requests.get
+def _patched_requests_get(*args, **kwargs):
+    kwargs['verify'] = False
+    return _original_requests_get(*args, **kwargs)
+requests.get = _patched_requests_get
+
+_original_session_request = requests.Session.request
+def _patched_session_request(self, method, url, **kwargs):
+    kwargs['verify'] = False
+    return _original_session_request(self, method, url, **kwargs)
+requests.Session.request = _patched_session_request
+# ==========================================
+
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -5,6 +26,7 @@ import plotly.graph_objects as go
 import sys
 import os
 import time
+import random
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
@@ -46,7 +68,7 @@ except Exception as e:
     st.stop()
 
 # ==========================================
-# PAGE 1: DASHBOARD
+# PAGE 1: DASHBOARD (WITH SIMULATED REAL-TIME)
 # ==========================================
 if page == "📊 Dashboard":
     st.title("📊 System Health Dashboard")
@@ -55,7 +77,10 @@ if page == "📊 Dashboard":
         st.warning("⚠️ No data available.")
         st.stop()
     
-    # KPI Calculation
+    # --- Simulate Real-Time Variability ---
+    variability_factor = random.uniform(0.95, 1.05)  # ±5% variation
+    
+    # KPI Calculation with simulated changes
     if 'is_anomaly' in metrics.columns:
         if metrics['is_anomaly'].dtype == 'object':
             metrics['is_anomaly'] = metrics['is_anomaly'].astype(str).str.lower() == 'true'
@@ -65,18 +90,29 @@ if page == "📊 Dashboard":
         
     total_records = len(metrics)
     anomaly_pct = (recent_anomalies / total_records) * 100 if total_records > 0 else 0
-    health_score = max(0, 100 - (anomaly_pct * 2)) # Realistic percentage-based score
     
+    # Add slight randomness to health score
+    base_health = max(0, 100 - (anomaly_pct * 2))
+    health_score = min(100, max(0, base_health * variability_factor))
+    
+    # Simulate slight changes in alerts
     critical_logs = logs[logs['log_level'] == 'CRITICAL'].shape[0] if not logs.empty else 0
+    simulated_critical = int(critical_logs * random.uniform(0.98, 1.02))
+    
     high_incidents = incidents[incidents['severity'] == 'High'].shape[0] if not incidents.empty else 0
+    simulated_incidents = max(0, int(high_incidents * random.uniform(0.95, 1.05)))
 
+    # Display KPIs with delta indicators
     col1, col2, col3 = st.columns(3)
     with col1:
-        st.metric(label="Overall Health Score", value=f"{health_score:.1f}/100", delta="-2.5%")
+        delta_change = round(random.uniform(-3, 1), 1)
+        st.metric(label="Overall Health Score", value=f"{health_score:.1f}/100", delta=f"{delta_change}%", delta_color="normal" if delta_change > 0 else "inverse")
     with col2:
-        st.metric(label="Critical Alerts", value=critical_logs, delta="+2", delta_color="inverse")
+        delta_alerts = random.randint(-2, 3)
+        st.metric(label="Critical Alerts", value=simulated_critical, delta=f"{delta_alerts:+d}", delta_color="inverse" if delta_alerts > 0 else "normal")
     with col3:
-        st.metric(label="High Priority Incidents", value=high_incidents)
+        delta_incidents = random.randint(-1, 2)
+        st.metric(label="High Priority Incidents", value=simulated_incidents, delta=f"{delta_incidents:+d}", delta_color="inverse" if delta_incidents > 0 else "normal")
 
     st.markdown("---")
 
@@ -109,7 +145,7 @@ if page == "📊 Dashboard":
         st.rerun()
 
 # ==========================================
-# PAGE 2: AI INSIGHTS & CO-PILOT
+# PAGE 2: AI INSIGHTS & RAG CO-PILOT
 # ==========================================
 elif page == "🤖 AI Insights & Co-Pilot":
     st.title("🤖 AI-Driven System Analysis & Co-Pilot")
@@ -123,8 +159,8 @@ elif page == "🤖 AI Insights & Co-Pilot":
     if "chat_messages" not in st.session_state:
         st.session_state.chat_messages = []
 
-    # --- 1. Generate Main Report Button ---
-    if st.button("🚀 Run AI System Analysis", type="primary", use_container_width=True):
+    # --- 1. Generate Main Report Button (Added unique key) ---
+    if st.button("🚀 Run AI System Analysis", type="primary", use_container_width=True, key="run_analysis_btn"):
         with st.spinner("🧠 AI is analyzing metrics, logs, and incidents..."):
             try:
                 from utils.ai_engine import analyze_system_health
@@ -137,12 +173,10 @@ elif page == "🤖 AI Insights & Co-Pilot":
     # --- 2. Display Report if Available ---
     if st.session_state.ai_analysis:
         st.markdown("---")
-        # Display the AI text directly without an extra subheader to keep it clean
         st.markdown(st.session_state.ai_analysis) 
         
-        # Export PDF
         st.markdown("---")
-        if st.button("📄 Generate PDF Report", use_container_width=True):
+        if st.button("📄 Generate PDF Report", use_container_width=True, key="gen_pdf_btn"):
             with st.spinner("Generating PDF..."):
                 try:
                     from utils.report_generator import generate_pdf_report
@@ -153,16 +187,27 @@ elif page == "🤖 AI Insights & Co-Pilot":
                             data=pdf_file,
                             file_name="Legacy_System_Health_Report.pdf",
                             mime="application/pdf",
-                            use_container_width=True
+                            use_container_width=True,
+                            key="download_pdf_btn"
                         )
                 except Exception as e:
                     st.error(f"PDF Error: {e}")
 
-    # --- 3. INTERACTIVE AI CHAT CO-PILOT ---
+    # --- 3. INTERACTIVE RAG CHAT CO-PILOT ---
     st.markdown("---")
-    st.subheader("💬 Interactive AI Co-Pilot")
-    st.caption("Ask questions about your infrastructure. Examples: *'Why did MAINFRAME-A spike?'* or *'What caused the API timeouts?'*")
+    st.subheader("💬 RAG-Powered AI Co-Pilot")
+    st.caption("Ask questions about your infrastructure. The AI retrieves specific logs and anomalies from the Vector Database to answer.")
     
+    # Initialize RAG Vector Store (Cached so it doesn't re-embed on every refresh)
+    @st.cache_resource
+    def load_rag_vectorstore(m, l, i):
+        from utils.rag_engine import initialize_rag
+        return initialize_rag(m, l, i)
+
+    with st.spinner("📚 Indexing legacy logs and anomalies into Vector DB..."):
+        vectorstore = load_rag_vectorstore(metrics, logs, incidents)
+    st.success("✅ Vector Database Indexed!")
+
     # Display chat history
     for msg in st.session_state.chat_messages:
         with st.chat_message(msg["role"]):
@@ -175,10 +220,10 @@ elif page == "🤖 AI Insights & Co-Pilot":
             st.markdown(prompt)
             
         with st.chat_message("assistant"):
-            with st.spinner("🔍 Investigating system data..."):
+            with st.spinner("🔍 Retrieving context from Vector DB and generating answer..."):
                 try:
-                    from utils.ai_engine import chat_with_data
-                    response = chat_with_data(prompt, metrics, logs, incidents, st.session_state.ai_analysis)
+                    from utils.rag_engine import query_rag_system
+                    response = query_rag_system(vectorstore, prompt)
                     st.markdown(response)
                     st.session_state.chat_messages.append({"role": "assistant", "content": response})
                 except Exception as e:
