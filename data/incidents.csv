@@ -1,0 +1,51 @@
+incident_id,timestamp,severity,description,resolution_time_min
+INC-1000,2026-06-04 11:37:21.420408,Low,Mainframe batch job failed due to memory overflow.,91
+INC-1001,2026-05-29 11:37:21.420408,High,Automated backup failed due to insufficient disk space.,448
+INC-1002,2026-05-07 11:37:21.420408,Low,Database deadlock detected in legacy CRM.,142
+INC-1003,2026-06-17 11:37:21.420408,Medium,Database deadlock detected in legacy CRM.,179
+INC-1004,2026-06-19 11:37:21.420408,Low,Automated backup failed due to insufficient disk space.,362
+INC-1005,2026-05-25 11:37:21.420408,Low,Mainframe batch job failed due to memory overflow.,129
+INC-1006,2026-06-08 11:37:21.420408,Medium,Legacy ERP system froze during payroll processing.,201
+INC-1007,2026-06-25 11:37:21.420408,Low,Network latency spiked causing API timeouts.,376
+INC-1008,2026-05-28 11:37:21.420408,Low,Mainframe batch job failed due to memory overflow.,93
+INC-1009,2026-05-28 11:37:21.420408,Critical,Legacy ERP system froze during payroll processing.,65
+INC-1010,2026-06-07 11:37:21.420408,Medium,Network latency spiked causing API timeouts.,139
+INC-1011,2026-05-24 11:37:21.420408,Medium,Mainframe batch job failed due to memory overflow.,300
+INC-1012,2026-06-06 11:37:21.420408,High,Legacy ERP system froze during payroll processing.,124
+INC-1013,2026-05-14 11:37:21.420408,Low,Database deadlock detected in legacy CRM.,232
+INC-1014,2026-06-16 11:37:21.420408,High,Database deadlock detected in legacy CRM.,311
+INC-1015,2026-06-02 11:37:21.420408,Low,Mainframe batch job failed due to memory overflow.,131
+INC-1016,2026-06-23 11:37:21.420408,Low,Mainframe batch job failed due to memory overflow.,178
+INC-1017,2026-05-20 11:37:21.420408,Medium,Mainframe batch job failed due to memory overflow.,122
+INC-1018,2026-05-24 11:37:21.420408,Medium,Legacy ERP system froze during payroll processing.,169
+INC-1019,2026-06-10 11:37:21.420408,Medium,Database deadlock detected in legacy CRM.,256
+INC-1020,2026-05-03 11:37:21.420408,Medium,Legacy ERP system froze during payroll processing.,412
+INC-1021,2026-05-07 11:37:21.420408,Low,Database deadlock detected in legacy CRM.,214
+INC-1022,2026-05-18 11:37:21.420408,High,Automated backup failed due to insufficient disk space.,209
+INC-1023,2026-05-26 11:37:21.420408,Medium,Database deadlock detected in legacy CRM.,371
+INC-1024,2026-05-08 11:37:21.420408,Medium,Legacy ERP system froze during payroll processing.,467
+INC-1025,2026-06-12 11:37:21.420408,Medium,Legacy ERP system froze during payroll processing.,166
+INC-1026,2026-06-15 11:37:21.420408,Medium,Database deadlock detected in legacy CRM.,403
+INC-1027,2026-06-08 11:37:21.420408,Low,Mainframe batch job failed due to memory overflow.,121
+INC-1028,2026-05-02 11:37:21.420408,Medium,Database deadlock detected in legacy CRM.,173
+INC-1029,2026-06-08 11:37:21.420408,Medium,Database deadlock detected in legacy CRM.,448
+INC-1030,2026-05-28 11:37:21.420408,Low,Database deadlock detected in legacy CRM.,261
+INC-1031,2026-06-21 11:37:21.420408,Low,Database deadlock detected in legacy CRM.,107
+INC-1032,2026-05-31 11:37:21.420408,Medium,Database deadlock detected in legacy CRM.,351
+INC-1033,2026-06-04 11:37:21.420408,High,Database deadlock detected in legacy CRM.,402
+INC-1034,2026-06-15 11:37:21.420408,Low,Mainframe batch job failed due to memory overflow.,159
+INC-1035,2026-05-09 11:37:21.420408,Low,Database deadlock detected in legacy CRM.,172
+INC-1036,2026-05-12 11:37:21.420408,Low,Network latency spiked causing API timeouts.,289
+INC-1037,2026-05-24 11:37:21.420408,Medium,Mainframe batch job failed due to memory overflow.,343
+INC-1038,2026-05-27 11:37:21.420408,Low,Automated backup failed due to insufficient disk space.,397
+INC-1039,2026-05-21 11:37:21.420408,Medium,Mainframe batch job failed due to memory overflow.,283
+INC-1040,2026-05-06 11:37:21.420408,High,Database deadlock detected in legacy CRM.,246
+INC-1041,2026-05-27 11:37:21.420408,Low,Database deadlock detected in legacy CRM.,203
+INC-1042,2026-05-11 11:37:21.420408,Low,Mainframe batch job failed due to memory overflow.,99
+INC-1043,2026-06-19 11:37:21.420408,Low,Database deadlock detected in legacy CRM.,383
+INC-1044,2026-05-31 11:37:21.420408,Critical,Automated backup failed due to insufficient disk space.,312
+INC-1045,2026-05-21 11:37:21.420408,Low,Mainframe batch job failed due to memory overflow.,387
+INC-1046,2026-05-11 11:37:21.420408,Low,Automated backup failed due to insufficient disk space.,61
+INC-1047,2026-06-04 11:37:21.420408,Critical,Database deadlock detected in legacy CRM.,343
+INC-1048,2026-06-19 11:37:21.420408,Low,Network latency spiked causing API timeouts.,461
+INC-1049,2026-05-02 11:37:21.420408,Medium,Database deadlock detected in legacy CRM.,469
