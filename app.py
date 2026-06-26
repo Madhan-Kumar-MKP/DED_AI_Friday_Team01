@@ -44,13 +44,16 @@ st.sidebar.markdown("---")
 st.sidebar.info("Powered by TCS GenAI Lab\nModel: DeepSeek-V3-0324")
 
 st.sidebar.markdown("### ⚙️ System Settings")
-live_mode = st.sidebar.checkbox("Enable Live Monitoring (Auto-refresh)", value=False)
+
+# --- LIVE MODE IS NOW ALWAYS ON IN THE BACKEND ---
+live_mode = True 
+
 privacy_mode = st.sidebar.checkbox("🔒 Enable Privacy Mode (Anonymize Data)", value=False)
 
 if privacy_mode:
     st.sidebar.warning("🔒 Sensitive server IDs are masked.")
 
-page = st.sidebar.radio("Navigate to:", ["📊 Dashboard", "🤖 AI Insights & Co-Pilot", "📁 Data Explorer"])
+page = st.sidebar.radio("Navigate to:", ["📊 Dashboard", "🤖 AI Insights & Co-Pilot", " Data Explorer"])
 
 # --- 3. Process Data (Runs fresh, no caching bugs) ---
 try:
@@ -64,7 +67,7 @@ try:
     if privacy_mode:
         metrics, logs, incidents = anonymize_data(metrics, logs, incidents)
 except Exception as e:
-    st.error(f"❌ Critical Pipeline Error: {e}")
+    st.error(f" Critical Pipeline Error: {e}")
     st.stop()
 
 # ==========================================
@@ -136,14 +139,6 @@ if page == "📊 Dashboard":
                           color_discrete_map={'INFO':'#2ecc71', 'WARNING':'#f1c40f', 'ERROR':'#e67e22', 'CRITICAL':'#e74c3c'})
             st.plotly_chart(fig2, use_container_width=True)
 
-    # Live Refresh Logic
-    if live_mode:
-        countdown_placeholder = st.sidebar.empty()
-        for i in range(10, 0, -1):
-            countdown_placeholder.info(f"⏳ Next data refresh in {i}s...")
-            time.sleep(1)
-        st.rerun()
-
 # ==========================================
 # PAGE 2: AI INSIGHTS & RAG CO-PILOT
 # ==========================================
@@ -192,21 +187,24 @@ elif page == "🤖 AI Insights & Co-Pilot":
                         )
                 except Exception as e:
                     st.error(f"PDF Error: {e}")
-
     # --- 3. INTERACTIVE RAG CHAT CO-PILOT ---
     st.markdown("---")
     st.subheader("💬 RAG-Powered AI Co-Pilot")
     st.caption("Ask questions about your infrastructure. The AI retrieves specific logs and anomalies from the Vector Database to answer.")
     
-    # Initialize RAG Vector Store (Cached so it doesn't re-embed on every refresh)
+    # Initialize RAG Vector Store (Cached in session state to prevent duplicates)
     @st.cache_resource
     def load_rag_vectorstore(m, l, i):
         from utils.rag_engine import initialize_rag
         return initialize_rag(m, l, i)
 
-    with st.spinner("📚 Indexing legacy logs and anomalies into Vector DB..."):
-        vectorstore = load_rag_vectorstore(metrics, logs, incidents)
-    st.success("✅ Vector Database Indexed!")
+    # Only show indexing message if not already cached
+    if 'rag_vectorstore' not in st.session_state:
+        with st.spinner("📚 Indexing critical logs and anomalies..."):
+            st.session_state.rag_vectorstore = load_rag_vectorstore(metrics, logs, incidents)
+        st.success("✅ RAG Knowledge Base Ready!")
+    
+    vectorstore = st.session_state.rag_vectorstore
 
     # Display chat history
     for msg in st.session_state.chat_messages:
@@ -253,3 +251,14 @@ elif page == "📁 Data Explorer":
     with tab3:
         st.subheader("Historical Incidents")
         st.dataframe(incidents, use_container_width=True)
+
+# ==========================================
+# BACKGROUND AUTO-REFRESH LOGIC (Always Active)
+# ==========================================
+if live_mode:
+    # Subtle countdown in the sidebar so users know it's updating
+    countdown_placeholder = st.sidebar.empty()
+    for i in range(10, 0, -1):
+        countdown_placeholder.info(f" Live feed updating in {i}s...")
+        time.sleep(1)
+    st.rerun()

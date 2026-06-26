@@ -1,37 +1,3 @@
-# ==========================================
-# MONKEY PATCH TO FIX CORPORATE SSL ERRORS
-# ==========================================
-import requests
-import urllib3
-
-# Suppress the "Unverified HTTPS request" warnings to keep the console clean
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
-# 1. Monkey patch requests.get to bypass SSL verification
-_original_requests_get = requests.get
-def _patched_requests_get(*args, **kwargs):
-    kwargs['verify'] = False
-    return _original_requests_get(*args, **kwargs)
-requests.get = _patched_requests_get
-
-# 2. Monkey patch requests.Session.request as well for broader coverage
-_original_session_request = requests.Session.request
-def _patched_session_request(self, method, url, **kwargs):
-    kwargs['verify'] = False
-    return _original_session_request(self, method, url, **kwargs)
-requests.Session.request = _patched_session_request
-# ==========================================
-
-# NOW import the rest of your libraries
-import streamlit as st
-import pandas as pd
-import plotly.express as px
-import plotly.graph_objects as go
-import sys
-import os
-import time
-# ... (rest of your existing imports and code)
-
 import os
 import httpx
 import pandas as pd
@@ -45,8 +11,8 @@ from langchain_core.runnables import RunnablePassthrough
 from langchain_core.output_parsers import StrOutputParser
 
 # --- 1. Setup HTTP Client & API Key ---
-client = httpx.Client(verify=False)
-API_KEY = "sk-9jsr_wOuUgqNPt9JvdiMqQ" # ⚠️ REPLACE THIS WITH YOUR ACTUAL API KEY
+client = httpx.Client(verify=False, timeout=120.0)
+API_KEY = "sk-9jsr_wOuUgqNPt9JvdiMqQ" # ️ REPLACE THIS WITH YOUR ACTUAL API KEY
 
 # --- 2. Initialize LLM and Embeddings ---
 llm = ChatOpenAI(
@@ -64,20 +30,21 @@ embeddings = OpenAIEmbeddings(
     http_client=client
 )
 
-# --- 3. Prepare Data for RAG (Convert CSV to Text Chunks) ---
+# --- 3. Prepare Data for RAG (OPTIMIZED: Only Critical Data) ---
 def prepare_rag_documents(metrics, logs, incidents):
-    """Converts structured data into text documents for the Vector DB."""
+    """Converts ONLY critical data into text documents to save time and tokens."""
     docs = []
     
-    # 1. Convert Logs to text
-    for _, row in logs.iterrows():
+    # 1. ONLY Convert CRITICAL and ERROR logs (Ignore INFO/WARNING to save 80% of time)
+    critical_logs = logs[logs['log_level'].isin(['ERROR', 'CRITICAL'])]
+    for _, row in critical_logs.iterrows():
         docs.append(f"Log [{row['log_level']}] at {row['timestamp']}: {row['message']}")
         
     # 2. Convert Incidents to text
     for _, row in incidents.iterrows():
         docs.append(f"Incident {row['incident_id']} ({row['severity']}): {row['description']}. Resolution time: {row['resolution_time_min']} mins.")
         
-    # 3. Convert Metric Anomalies to text (Only anomalies to save tokens)
+    # 3. ONLY Convert Metric Anomalies to text
     if 'is_anomaly' in metrics.columns:
         if metrics['is_anomaly'].dtype == 'object':
             metrics['is_anomaly'] = metrics['is_anomaly'].astype(str).str.lower() == 'true'
@@ -105,14 +72,13 @@ def initialize_rag(metrics, logs, incidents):
     )
     return vectorstore
 
-# --- 5. Query the RAG System using LCEL (Modern LangChain) ---
+# --- 5. Query the RAG System using LCEL ---
 def query_rag_system(vectorstore, user_question):
     """Retrieves relevant context and generates an answer using LCEL."""
     retriever = vectorstore.as_retriever(search_kwargs={"k": 5})
     
-    # Custom Prompt for IT Maintenance
     template = """You are an expert AI IT Maintenance Co-Pilot. Use the following context retrieved from the legacy system logs and metrics to answer the user's question.
-    If the context doesn't have the exact answer, use your general IT knowledge to provide a helpful troubleshooting step, but mention that the specific data wasn't found in the logs.
+    If the context doesn't have the exact answer, use your general IT knowledge to provide a helpful troubleshooting step.
 
     Context:
     {context}
@@ -123,12 +89,9 @@ def query_rag_system(vectorstore, user_question):
     
     prompt = ChatPromptTemplate.from_template(template)
     
-    # Helper function to format retrieved documents into a single string
     def format_docs(docs):
         return "\n\n".join(doc.page_content for doc in docs)
 
-    # Create RAG Chain using LCEL (LangChain Expression Language)
-    # This is the modern, official way to build chains in LangChain!
     rag_chain = (
         {"context": retriever | format_docs, "question": RunnablePassthrough()}
         | prompt
